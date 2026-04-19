@@ -1,0 +1,7 @@
+pip
+requests
+fastapi
+mangum
+pyjwt
+cryptography
+boto3
