@@ -1,7 +1,5 @@
 pip
 requests
-fastapi
-mangum
-pyjwt
-cryptography
 boto3
+psycopg[binary]
+xero-python[binary]

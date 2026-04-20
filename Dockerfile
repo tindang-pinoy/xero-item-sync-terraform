@@ -10,4 +10,4 @@ COPY ./lambda_code/. ${LAMBDA_TASK_ROOT}
 RUN python3 -m pip install --upgrade -r ${LAMBDA_TASK_ROOT}/requirements.txt -t "${LAMBDA_TASK_ROOT}" -U --no-cache-dir
 
 # Set the CMD to your handler (could also be done as a parameter override outside of the Dockerfile)
-CMD ["api_handler.lambda_handler"]
+CMD ["lambda_handler.lambda_handler"]

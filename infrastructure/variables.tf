@@ -33,7 +33,8 @@ variable "lambda_name" {
   type        = string
 }
 
-variable "iam_role_arn" {
-  description = "The ARN of the IAM role to be used by the Lambda function"
-  type        = string
+variable "lambda_environments" {
+  description = "Environment variables to pass to the Lambda function"
+  type        = map(string)
+  default     = {}
 }

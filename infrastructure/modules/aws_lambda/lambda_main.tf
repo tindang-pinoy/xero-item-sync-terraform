@@ -10,11 +10,19 @@ resource "aws_lambda_function" "lambda_api_function" {
       variables = var.lambda_environments
     }
 
-    description = "Salesforce Code (v2) API Handler Function"
+    description = "Xero Item Sync Lambda Function"
     image_uri = module.docker_image.image_uri
     package_type = "Image"
 
-    tags = local.tags
+  dynamic "vpc_config" {
+    for_each = length(var.subnet_ids) > 0 ? [1] : []
+    content {
+      subnet_ids         = var.subnet_ids
+      security_group_ids = var.security_group_ids
+    }
+  }
+
+  tags = local.tags
 }
 
 module "docker_image" {
