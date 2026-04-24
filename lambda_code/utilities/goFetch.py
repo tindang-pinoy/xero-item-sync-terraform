@@ -1,15 +1,19 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import timezone, datetime
 from decimal import Decimal
 from typing import Any, Iterable, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
+
+NZT = ZoneInfo("Pacific/Auckland")
 
 import boto3
 import json
+import logging
 import os
 import re
-import logging
+import time
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -21,11 +25,13 @@ class InventoryItemRow:
     Dataclass representing a row in the inventory_items table
     '''
     item_id: UUID
+    id: UUID
     code: str
     name: str
     description: Optional[str]
     purchase_description: Optional[str]
-    updated_at_utc: datetime
+    updated_at_utc: Optional[datetime]
+    updated_at_nzt: Optional[datetime]
     is_tracked_as_inventory: bool
     inventory_asset_account_code: Optional[str]
     total_cost_pool: Decimal
@@ -39,6 +45,7 @@ class PurchaseDetailsRow:
     Dataclass representing a row in the inventory_item_purchase_details table
     '''
     item_id: UUID
+    id: UUID
     unit_price: Decimal
     cogs_account_code: str
     tax_type: str
@@ -49,8 +56,9 @@ class SalesDetailsRow:
     Dataclass representing a row in the inventory_item_sales_details table
     '''
     item_id: UUID
+    id: UUID
     unit_price: Decimal
-    income_account_code: str
+    account_code: str
     tax_type: str
 
 def say_hello():
@@ -73,10 +81,13 @@ def retrieve_secret(secret_name: str) -> dict:
     '''
     client = init_secrets_manager_boto_client()
     try:
+        logger.info(f"Retrieving secret: {secret_name} from AWS Secrets Manager...")
         secret_value = client.get_secret_value(SecretId=secret_name)
+        
         if "SecretString" in secret_value:
             secret_string = secret_value['SecretString']
             secret_dict = json.loads(secret_string)
+            logger.info(f"Successfully retrieved and parsed secret: {secret_name}")
         else:
             logger.error(f"Secret {secret_name} does not contain a SecretString.")
             raise ValueError(f"Secret {secret_name} does not contain a SecretString.")
@@ -91,9 +102,17 @@ def get_xero_credentials():
     Retrieves the Xero API credentials from AWS Secrets Manager and stores them in the global xero_secrets variable
     '''
     global xero_secrets
+    secret_name = os.getenv("XERO_SECRET_NAME")
     if not xero_secrets:
-        secret_name = os.getenv("XERO_SECRET_NAME")
+        logger.info("Xero API credentials not found in memory. Fetching from AWS Secrets Manager...")
         xero_secrets = retrieve_secret(secret_name)
+        logger.info("Xero API credentials successfully retrieved and stored in memory.")
+    if xero_secrets.get("accessToken", {}).get("expires_at", 0) <= int(time.time()):
+        logger.warning("Xero API access token has expired. Fetching fresh credentials from AWS Secrets Manager...")
+        xero_secrets = retrieve_secret(secret_name)
+        logger.info("Xero API credentials successfully refreshed.")
+    else:
+        logger.info("Xero API credentials already in memory. Using cached credentials.")
     return xero_secrets
 
 def extract_xero_items(xero_response: dict[str, Any]) -> list[dict[str, Any]]:
@@ -117,10 +136,13 @@ def extract_xero_items(xero_response: dict[str, Any]) -> list[dict[str, Any]]:
     return items
 
 _XERO_DATE_RE = re.compile(r"/Date\((?P<ms>-?\d+)(?P<offset>[+-]\d{4})?\)/")
-def parse_xero_date(xero_date: str) -> datetime:
+def parse_xero_date(xero_date: Optional[str]) -> Optional[datetime]:
     '''
-    Parses a date string from Xero API response and returns a datetime object
+    Parses a date string from Xero API response and returns a datetime object.
+    Returns None if the input is None or empty.
     '''
+    if not xero_date:
+        return None
     match = _XERO_DATE_RE.fullmatch(xero_date)
     if not match:
         raise ValueError(f"Invalid Xero date format: {xero_date}")
@@ -143,49 +165,53 @@ def map_items(item: dict[str, Any]) -> tuple[InventoryItemRow, Optional[Purchase
     '''
     Maps a single item dictionary from Xero API response to the corresponding dataclass instances for inventory_items, inventory_item_purchase_details, and inventory_item_sales_details tables
     '''
-    item_id = UUID(item["ItemID"])
-
+    item_id = UUID(item.get("ItemID"))
+    id = uuid4()
     inv = InventoryItemRow(
         item_id=item_id,
-        code=item["Code"],
-        name=item["Name"],
+        id=id,
+        code=item.get("Code", ""),
+        name=item.get("Name", ""),
         description=item.get("Description"),
         purchase_description=item.get("PurchaseDescription"),
-        updated_at_utc=parse_xero_date(item["UpdatedDateUTC"]),
-        is_tracked_as_inventory=item["IsTrackedAsInventory"],
+        updated_at_utc=(utc := parse_xero_date(item.get("UpdatedDateUTC"))),
+        updated_at_nzt=utc.astimezone(NZT) if utc else None,
+        is_tracked_as_inventory=item.get("IsTrackedAsInventory", False),
         inventory_asset_account_code=item.get("InventoryAssetAccountCode"),
-        total_cost_pool=decimal(item["TotalCostPool"]),
-        quantity_on_hand=decimal(item["QuantityOnHand"]),
-        is_sold=item["IsSold"],
-        is_purchased=item["IsPurchased"]
+        total_cost_pool=decimal(item["TotalCostPool"]) if "TotalCostPool" in item else None,
+        quantity_on_hand=decimal(item["QuantityOnHand"]) if "QuantityOnHand" in item else None,
+        is_sold=item.get("IsSold", False),
+        is_purchased=item.get("IsPurchased", False)
     )
 
     pd = item.get("PurchaseDetails") or None
     purchase = None
     if isinstance(pd, dict):
         # Only create a purchase row if it has the expected fields
-        if pd.get("UnitPrice") is not None and pd.get("COGSAccountCode") is not None and pd.get("TaxType") is not None:
+        if pd.get("UnitPrice") is not None and pd.get("COGSAccountCode") is not None:
             purchase = PurchaseDetailsRow(
                 item_id=item_id,
+                id=id,
                 unit_price=decimal(pd.get("UnitPrice") or 0),
                 cogs_account_code=str(pd.get("COGSAccountCode") or "").strip(),
                 tax_type=str(pd.get("TaxType") or "").strip()
             )
+
     sd = item.get("SalesDetails") or None
     sales = None
     if isinstance(sd, dict):
         # Only create a sales row if it has the expected fields
-        if sd.get("UnitPrice") is not None and sd.get("IncomeAccountCode") is not None and sd.get("TaxType") is not None:
+        if sd.get("UnitPrice") is not None and sd.get("AccountCode") is not None:
             sales = SalesDetailsRow(
-                item_id = item_id,
-                unit_price = decimal(sd.get("UnitPrice") or 0),
-                income_account_code = str(sd.get("IncomeAccountCode") or "").strip(),
-                tax_type = str(sd.get("TaxType") or "").strip()
+                item_id=item_id,
+                id=id,
+                unit_price=decimal(sd.get("UnitPrice") or 0),
+                account_code=str(sd.get("AccountCode") or "").strip(),
+                tax_type=str(sd.get("TaxType") or "").strip()
             )
 
     if not inv.code:
         raise ValueError(f"Item {item_id} is missing required field 'Code'")
     if not inv.name:
         raise ValueError(f"Item {item_id} is missing required field 'Name'")
-    
     return inv, purchase, sales

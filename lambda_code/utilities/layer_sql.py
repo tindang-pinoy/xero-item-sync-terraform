@@ -1,11 +1,13 @@
 UPSERT_INVENTORY_ITEM_SQL = """
 INSERT INTO inventory_item (
     item_id,
+    id,
     code,
     name,
     description,
     purchase_description,
     updated_at_utc,
+    updated_at_nzt,
     is_tracked_as_inventory,
     inventory_asset_account_code,
     total_cost_pool,
@@ -14,11 +16,13 @@ INSERT INTO inventory_item (
     is_purchased
 ) VALUES (
     %(item_id)s,
+    %(id)s,
     %(code)s,
     %(name)s,
     %(description)s,
     %(purchase_description)s,
     %(updated_at_utc)s,
+    %(updated_at_nzt)s,
     %(is_tracked_as_inventory)s,
     %(inventory_asset_account_code)s,
     %(total_cost_pool)s,
@@ -32,6 +36,7 @@ ON CONFLICT (item_id) DO UPDATE SET
     description = EXCLUDED.description,
     purchase_description = EXCLUDED.purchase_description,
     updated_at_utc = EXCLUDED.updated_at_utc,
+    updated_at_nzt = EXCLUDED.updated_at_nzt,
     is_tracked_as_inventory = EXCLUDED.is_tracked_as_inventory,
     inventory_asset_account_code = EXCLUDED.inventory_asset_account_code,
     total_cost_pool = EXCLUDED.total_cost_pool,
@@ -44,11 +49,13 @@ ON CONFLICT (item_id) DO UPDATE SET
 UPSERT_PURCHASE_DETAILS_SQL = """
 INSERT INTO inventory_item_purchase_details (
     item_id,
+    id,
     unit_price,
     cogs_account_code,
     tax_type
 ) VALUES (
     %(item_id)s,
+    %(id)s,
     %(unit_price)s,
     %(cogs_account_code)s,
     %(tax_type)s
@@ -63,13 +70,15 @@ ON CONFLICT (item_id) DO UPDATE SET
 UPSERT_SALES_DETAILS_SQL = """
 INSERT INTO inventory_item_sales_details (
     item_id,
+    id,
     unit_price,
     account_code,
     tax_type
 ) VALUES (
     %(item_id)s,
+    %(id)s,
     %(unit_price)s,
-    %(income_account_code)s,
+    %(account_code)s,
     %(tax_type)s
 )
 ON CONFLICT (item_id) DO UPDATE SET
