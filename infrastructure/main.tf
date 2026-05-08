@@ -29,7 +29,7 @@ module "lambda_fetcher" {
 }
 
 # -------------------------------------------------------
-# Lambda 2 — DB Writer
+# Lambda 2 — Uploader
 # Inside default VPC with Lambda SG attached.
 # No internet access needed — uses IAM auth token
 # (generated locally via SigV4) to connect to RDS.
