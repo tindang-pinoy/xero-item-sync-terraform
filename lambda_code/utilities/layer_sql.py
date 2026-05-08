@@ -1,9 +1,36 @@
+SELECT_ALL_ITEMS_SQL = """
+SELECT 
+* 
+FROM inventory_item
+where substring(xero_name, 1, 1) not in ('z')
+ORDER BY xero_name DESC
+;
+"""
+
+SELECT_ITEM_BY_ID_SQL = """
+SELECT * FROM inventory_item
+WHERE item_id = %(item_id)s
+;
+"""
+
+SELECT_PURCHASE_DETAILS_SQL = """
+SELECT * FROM inventory_item_purchase_details
+WHERE item_id = %(item_id)s
+;
+"""
+
+SELECT_SALES_DETAILS_SQL = """
+SELECT * FROM inventory_item_sales_details
+WHERE item_id = %(item_id)s
+;
+"""
+
 UPSERT_INVENTORY_ITEM_SQL = """
 INSERT INTO inventory_item (
     item_id,
     id,
     code,
-    name,
+    xero_name,
     description,
     purchase_description,
     updated_at_utc,
@@ -18,7 +45,7 @@ INSERT INTO inventory_item (
     %(item_id)s,
     %(id)s,
     %(code)s,
-    %(name)s,
+    %(xero_name)s,
     %(description)s,
     %(purchase_description)s,
     %(updated_at_utc)s,
@@ -32,7 +59,7 @@ INSERT INTO inventory_item (
 )
 ON CONFLICT (item_id) DO UPDATE SET
     code = EXCLUDED.code,
-    name = EXCLUDED.name,
+    xero_name = EXCLUDED.xero_name,
     description = EXCLUDED.description,
     purchase_description = EXCLUDED.purchase_description,
     updated_at_utc = EXCLUDED.updated_at_utc,

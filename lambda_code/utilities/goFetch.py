@@ -27,7 +27,7 @@ class InventoryItemRow:
     item_id: UUID
     id: UUID
     code: str
-    name: str
+    xero_name: str
     description: Optional[str]
     purchase_description: Optional[str]
     updated_at_utc: Optional[datetime]
@@ -171,7 +171,7 @@ def map_items(item: dict[str, Any]) -> tuple[InventoryItemRow, Optional[Purchase
         item_id=item_id,
         id=id,
         code=item.get("Code", ""),
-        name=item.get("Name", ""),
+        xero_name=item.get("Name", ""),
         description=item.get("Description"),
         purchase_description=item.get("PurchaseDescription"),
         updated_at_utc=(utc := parse_xero_date(item.get("UpdatedDateUTC"))),
@@ -212,6 +212,6 @@ def map_items(item: dict[str, Any]) -> tuple[InventoryItemRow, Optional[Purchase
 
     if not inv.code:
         raise ValueError(f"Item {item_id} is missing required field 'Code'")
-    if not inv.name:
-        raise ValueError(f"Item {item_id} is missing required field 'Name'")
+    if not inv.xero_name:
+        raise ValueError(f"Item {item_id} is missing required field 'Xero Name'")
     return inv, purchase, sales

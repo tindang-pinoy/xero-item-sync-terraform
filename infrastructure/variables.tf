@@ -64,6 +64,16 @@ variable "lambda_uploader_description" {
   type        = string
 }
 
+variable "lambda_name_db_api" {
+  description = "Name of the database API Lambda function (Lambda 3)"
+  type        = string
+}
+
+variable "lambda_db_api_description" {
+  description = "Description of the database API Lambda function (Lambda 3)"
+  type        = string
+}
+
 variable "rds_iam_db_username" {
   description = "PostgreSQL username mapped to IAM for rds-db:connect auth"
   type        = string

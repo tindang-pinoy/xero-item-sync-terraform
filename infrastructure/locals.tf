@@ -24,4 +24,11 @@ locals {
     DB_NAME = data.aws_ssm_parameter.db_name.value
     DB_USER = var.rds_iam_db_username
   }
+
+  lambda_db_api_environments = {
+    DB_HOST = data.aws_ssm_parameter.db_endpoint.value
+    DB_PORT = "5432"
+    DB_NAME = data.aws_ssm_parameter.db_name.value
+    DB_USER = var.rds_iam_db_username
+  }
 }

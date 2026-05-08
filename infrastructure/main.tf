@@ -40,10 +40,10 @@ module "lambda_uploader" {
   default_values = local.default_values
   lambda_name    = var.lambda_name_uploader
   lambda_version = var.lambda_version
-  iam_role_arn   = module.iam_role.lambda_db_writer_role_arn
+  iam_role_arn   = module.iam_role.lambda_uploader_role_arn
   create_image   = false
   image_uri      = module.lambda_fetcher.image_uri
-  handler_command = ["lambda_db_writer.lambda_handler"]
+  handler_command = ["lambda_uploader.lambda_handler"]
   subnet_ids         = data.aws_subnets.default.ids
   security_group_ids = [data.aws_ssm_parameter.lambda_sg_id.value]
   lambda_description = var.lambda_uploader_description
@@ -59,6 +59,41 @@ module "sqs_queue" {
   default_values      = local.default_values
   queue_name          = var.lambda_name_fetcher
   lambda_function_arn = module.lambda_fetcher.lambda_function_arn
+}
+
+# -------------------------------------------------------
+# Lambda 3 — DB API
+# Inside default VPC with Lambda SG attached.
+# Triggered by HTTP API Gateway.
+# Uses IAM auth token (SigV4) to connect to RDS.
+# -------------------------------------------------------
+module "lambda_db_api" {
+  source = "./modules/aws_lambda"
+
+  default_values = local.default_values
+  lambda_name    = var.lambda_name_db_api
+  lambda_version = var.lambda_version
+  iam_role_arn   = module.iam_role.lambda_db_api_role_arn
+  create_image   = false
+  image_uri      = module.lambda_fetcher.image_uri
+  handler_command = ["database_apis.handler"]
+  subnet_ids         = data.aws_subnets.default.ids
+  security_group_ids = [data.aws_ssm_parameter.lambda_sg_id.value]
+  lambda_description = var.lambda_db_api_description
+  lambda_environments = local.lambda_db_api_environments
+}
+
+# -------------------------------------------------------
+# HTTP API Gateway — triggers Lambda 3 (DB API)
+# Catch-all route: FastAPI/Mangum handles all routing.
+# -------------------------------------------------------
+module "db_api_gateway" {
+  source = "./modules/aws_api_gateway"
+
+  default_values      = local.default_values
+  api_name            = var.lambda_name_db_api
+  api_description     = var.lambda_db_api_description
+  lambda_function_arn = module.lambda_db_api.lambda_function_arn
 }
 
 # SQS consume permissions on the fetcher role

@@ -24,7 +24,6 @@ EXCLUDED_ITEM_UUIDS = {
     UUID("020a49a0-07fa-497c-93b4-591abb0e2c28")
 }
 
-
 def _get_iam_auth_token() -> str:
     """
     Generate a short-lived RDS IAM authentication token.
